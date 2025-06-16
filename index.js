@@ -3,7 +3,8 @@ import cors from 'cors';
 import { MongoClient, ObjectId } from 'mongodb';
 import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
-// import jwt from 'jsonwebtoken';
+import { verifyJWT } from './verifyJWT.js';
+
 
 
 dotenv.config();
@@ -32,6 +33,27 @@ async function run() {
     console.log("✅ Connected to MongoDB");
 
     app.get('/', (req, res) => res.send('🍔 Food Expiry Tracker Server is Running...'));
+
+    app.post('/jwt', (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).send({ error: 'Email is required' });
+  }
+
+  const token = jwt.sign({ email }, process.env.JWT_SECRET, {
+    expiresIn: '2h',
+  });
+
+  res
+    .cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 2 * 60 * 60 * 1000,
+    })
+    .send({ message: 'Token set in cookie' });
+});
 
    // Get all foods with optional search and category filter
 app.get('/foods', async (req, res) => {
@@ -81,7 +103,7 @@ app.get('/foods', async (req, res) => {
 
 
 // Get all food items for a specific user (by email)
-app.get('/myfoods', async (req, res) => {
+app.get('/myfoods',verifyJWT, async (req, res) => {
   const userEmail = req.query.email; 
 
   if (!userEmail) {
@@ -112,7 +134,7 @@ app.get('/myfoods', async (req, res) => {
     });
 
  // Add new food
-app.post('/foods', async (req, res) => {
+app.post('/foods', verifyJWT, async (req, res) => {
   const { image, title, category, quantity, expiryDate, description, userEmail } = req.body;
 
   // Validate required fields
@@ -147,7 +169,7 @@ app.post('/foods', async (req, res) => {
 
 
     // Update food item by ID
-    app.put('/foods/:id', async (req, res) => {
+    app.put('/foods/:id', verifyJWT, async (req, res) => {
       try {
         const id = req.params.id;
         const updatedFood = req.body;
@@ -172,7 +194,7 @@ app.post('/foods', async (req, res) => {
     });
 
     // Delete food item
-    app.delete('/foods/:id', async (req, res) => {
+    app.delete('/foods/:id', verifyJWT, async (req, res) => {
       const id = req.params.id;
       const result = await foodCollection.deleteOne({ _id: new ObjectId(id) });
       res.send(result);
