@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { MongoClient, ObjectId } from 'mongodb';
 import dotenv from 'dotenv';
-// import cookieParser from 'cookie-parser';
+import cookieParser from 'cookie-parser';
 // import jwt from 'jsonwebtoken';
 
 
@@ -14,9 +14,12 @@ const uri = process.env.MONGO_URI;
 
 if (!uri) throw new Error("❌ MONGO_URI is not defined in .env file");
 
-app.use(cors());
+app.use(cors({
+  origin: 'http://localhost:5173/', // ফ্রন্টএন্ড URL বসাও
+  credentials: true,                      // যাতে কুকি যায়
+}));
 app.use(express.json());
-// app.use(cookieParser());
+app.use(cookieParser());
 
 const client = new MongoClient(uri);
 let foodCollection;
@@ -56,7 +59,7 @@ app.get('/foods', async (req, res) => {
   }
 });
 
-
+ // all expired or expiring in next 5 days
 
     app.get('/foods/expiring-soon',async (req, res) => {
   console.log('GET /foods/expiring-soon called');
@@ -66,7 +69,7 @@ app.get('/foods', async (req, res) => {
     end.setHours(23, 59, 59, 999);
 
     const expiringSoonOrExpired = await foodCollection.find({
-      expiryDate: { $lte: end }, // all expired or expiring in next 5 days
+      expiryDate: { $lte: end },
     }).toArray();
 
     res.send(expiringSoonOrExpired);
