@@ -57,27 +57,6 @@ app.get('/foods', async (req, res) => {
 });
 
 
-    // Get foods expiring within 5 days
-    // app.get('/foods/expiring-soon', async (req, res) => {
-    //    console.log('GET /foods/expiring-soon called');
-    //   try {
-    //     const start = new Date();
-    //     start.setHours(0, 0, 0, 0);
-
-    //     const end = new Date();
-    //     end.setDate(end.getDate() + 5);
-    //     end.setHours(23, 59, 59, 999);
-
-    //     const expiringSoon = await foodCollection.find({
-    //       expiryDate: { $gte: start, $lte: end },
-    //     }).toArray();
-
-    //     res.send(expiringSoon);
-    //   } catch (error) {
-    //     console.error('❌ Error fetching expiring foods:', error);
-    //     res.status(500).send({ error: 'Failed to fetch expiring food items' });
-    //   }
-    // });
 
     app.get('/foods/expiring-soon',async (req, res) => {
   console.log('GET /foods/expiring-soon called');
@@ -100,7 +79,7 @@ app.get('/foods', async (req, res) => {
 
 // Get all food items for a specific user (by email)
 app.get('/myfoods', async (req, res) => {
-  const userEmail = req.query.email; // e.g., /myfoods?email=user@example.com
+  const userEmail = req.query.email; 
 
   if (!userEmail) {
     return res.status(400).send({ error: 'User email is required' });
