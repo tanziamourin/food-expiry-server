@@ -137,7 +137,7 @@ app.post('/foods', async (req, res) => {
     const result = await foodCollection.insertOne(newFood);
     res.send(result);
   } catch (error) {
-    console.error('❌ Error adding new food:', error);
+    console.error(' Error adding new food:', error);
     res.status(500).send({ error: 'Failed to add food' });
   }
 });
@@ -163,7 +163,7 @@ app.post('/foods', async (req, res) => {
 
         res.send({ message: 'Food item updated successfully' });
       } catch (error) {
-        console.error('❌ Error updating food item:', error);
+        console.error('Error updating food item:', error);
         res.status(500).send({ error: 'Failed to update food item' });
       }
     });
