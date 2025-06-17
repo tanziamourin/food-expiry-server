@@ -11,7 +11,7 @@ export function verifyJWT(req, res, next) {
     if (err) {
       return res.status(401).json({ error: 'Unauthorized: Invalid token' });
     }
-    req.user = decoded; // email থাকবে decoded.email এ
+    req.user = decoded; 
     next();
   });
 }

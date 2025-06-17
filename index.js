@@ -1,10 +1,10 @@
-import express from 'express';
-import cors from 'cors';
-import { MongoClient, ObjectId } from 'mongodb';
-import dotenv from 'dotenv';
-import cookieParser from 'cookie-parser';
-import jwt from 'jsonwebtoken';
-import { verifyJWT } from './verifyJWT.js';
+import express from "express";
+import cors from "cors";
+import { MongoClient, ObjectId } from "mongodb";
+import dotenv from "dotenv";
+import cookieParser from "cookie-parser";
+import jwt from "jsonwebtoken";
+import { verifyJWT } from "./verifyJWT.js";
 
 dotenv.config();
 
@@ -12,12 +12,12 @@ const app = express();
 const port = process.env.PORT || 5000;
 const uri = process.env.MONGO_URI;
 
-if (!uri) throw new Error("MONGO_URI is not defined in .env file");
-
-app.use(cors({
-  origin: 'http://localhost:5173', // ফ্রন্টএন্ড URL
-  credentials: true,
-}));
+app.use(
+  cors({
+    origin: "http://localhost:5173", // client side url
+    credentials: true,
+  })
+);
 app.use(express.json());
 app.use(cookieParser());
 
@@ -27,90 +27,128 @@ let foodCollection;
 async function run() {
   try {
     await client.connect();
-    const db = client.db('foodExpiryDb');
-    foodCollection = db.collection('foodItems');
+    const db = client.db("foodExpiryDb");
+    foodCollection = db.collection("foodItems");
     console.log("Connected to MongoDB");
 
-    app.get('/', (req, res) => res.send('Food Expiry Tracker Server is Running...'));
+    app.get("/", (req, res) =>
+      res.send("Food Expiry Tracker Server is Running...")
+    );
+
+    // jwt code start
 
     app.post("/jwt", (req, res) => {
       const { email } = req.body;
       if (!email) return res.status(400).json({ error: "Email is required" });
-      if (!process.env.JWT_SECRET) return res.status(500).json({ error: "Server config error" });
+      if (!process.env.JWT_SECRET)
+        return res.status(500).json({ error: "Server config error" });
 
-      const token = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: "1h" });
+      const token = jwt.sign({ email }, process.env.JWT_SECRET, {
+        expiresIn: "1h",
+      });
 
-      res.cookie('token', token, {
+      res.cookie("token", token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
         maxAge: 24 * 60 * 60 * 1000,
       });
 
-      res.json({ success: true, message: 'JWT token set in cookie' });
+      res.json({ success: true, message: "JWT token set in cookie" });
     });
 
-    app.get('/foods', async (req, res) => {
+    // get foods from font end
+
+    app.get("/foods", async (req, res) => {
       try {
         const { search, category } = req.query;
         const query = {};
         if (search) {
           query.$or = [
-            { title: { $regex: search, $options: 'i' } },
-            { category: { $regex: search, $options: 'i' } },
+            { title: { $regex: search, $options: "i" } },
+            { category: { $regex: search, $options: "i" } },
           ];
         }
         if (category) query.category = category;
         const foods = await foodCollection.find(query).toArray();
         res.send(foods);
       } catch (error) {
-        res.status(500).send({ error: 'Failed to fetch foods' });
+        res.status(500).send({ error: "Failed to fetch foods" });
       }
     });
 
-    app.get('/foods/expiring-soon', async (req, res) => {
+    // expiring foods
+
+    app.get("/foods/expiring-soon", async (req, res) => {
       try {
         const end = new Date();
         end.setDate(end.getDate() + 5);
         end.setHours(23, 59, 59, 999);
 
-        const foods = await foodCollection.find({ expiryDate: { $lte: end } }).toArray();
+        const foods = await foodCollection
+          .find({ expiryDate: { $lte: end } })
+          .toArray();
         res.send(foods);
       } catch (error) {
-        res.status(500).send({ error: 'Failed to fetch expiring foods' });
+        res.status(500).send({ error: "Failed to fetch expiring foods" });
       }
     });
 
-    app.get('/myfoods', verifyJWT, async (req, res) => {
+    // my foods
+
+    app.get("/myfoods", verifyJWT, async (req, res) => {
       const userEmail = req.query.email;
-      if (!userEmail) return res.status(400).send({ error: 'User email is required' });
+      if (!userEmail)
+        return res.status(400).send({ error: "User email is required" });
 
       try {
         const foods = await foodCollection.find({ userEmail }).toArray();
         res.send(foods);
       } catch {
-        res.status(500).send({ error: 'Failed to fetch user foods' });
+        res.status(500).send({ error: "Failed to fetch user foods" });
       }
     });
 
-    app.get('/foods/:id', async (req, res) => {
+    // foods geting by id
+
+    app.get("/foods/:id", async (req, res) => {
       try {
         const id = req.params.id;
-        const foodItem = await foodCollection.findOne({ _id: new ObjectId(id) });
-        if (!foodItem) return res.status(404).send({ error: 'Food item not found' });
+        const foodItem = await foodCollection.findOne({
+          _id: new ObjectId(id),
+        });
+        if (!foodItem)
+          return res.status(404).send({ error: "Food item not found" });
         res.send(foodItem);
       } catch {
-        res.status(500).send({ error: 'Failed to fetch food item' });
+        res.status(500).send({ error: "Failed to fetch food item" });
       }
     });
 
-    app.post('/foods', verifyJWT, async (req, res) => {
-      const { image, title, category, quantity, expiryDate, description, userEmail } = req.body;
-      if (!image || !title || !category || !quantity || !expiryDate || !userEmail) {
-        return res.status(400).send({ error: 'Required fields are missing' });
+    app.post("/foods", verifyJWT, async (req, res) => {
+      const {
+        image,
+        title,
+        category,
+        quantity,
+        expiryDate,
+        description,
+        userEmail,
+      } = req.body;
+      if (
+        !image ||
+        !title ||
+        !category ||
+        !quantity ||
+        !expiryDate ||
+        !userEmail
+      ) {
+        return res.status(400).send({ error: "Required fields are missing" });
       }
       if (isNaN(quantity) || quantity <= 0) {
-        return res.status(400).send({ error: 'Quantity must be a positive number' });
+        return res
+          .status(400)
+          .send({ error: "Quantity must be a positive number" });
       }
       try {
         const newFood = {
@@ -126,44 +164,57 @@ async function run() {
         const result = await foodCollection.insertOne(newFood);
         res.send(result);
       } catch {
-        res.status(500).send({ error: 'Failed to add food' });
+        res.status(500).send({ error: "Failed to add food" });
       }
     });
 
-    app.put('/foods/:id', verifyJWT, async (req, res) => {
+    app.put("/foods/:id", verifyJWT, async (req, res) => {
       try {
         const id = req.params.id;
         const updatedFood = req.body;
 
-        if (updatedFood.expiryDate) updatedFood.expiryDate = new Date(updatedFood.expiryDate);
-        if (updatedFood.addedDate) updatedFood.addedDate = new Date(updatedFood.addedDate);
+        if (updatedFood.expiryDate)
+          updatedFood.expiryDate = new Date(updatedFood.expiryDate);
+        if (updatedFood.addedDate)
+          updatedFood.addedDate = new Date(updatedFood.addedDate);
 
-        const result = await foodCollection.updateOne({ _id: new ObjectId(id) }, { $set: updatedFood });
-        if (result.matchedCount === 0) return res.status(404).send({ error: 'Food item not found' });
+        const result = await foodCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: updatedFood }
+        );
+        if (result.matchedCount === 0)
+          return res.status(404).send({ error: "Food item not found" });
 
-        res.send({ message: 'Food item updated successfully' });
+        res.send({ message: "Food item updated successfully" });
       } catch {
-        res.status(500).send({ error: 'Failed to update food item' });
+        res.status(500).send({ error: "Failed to update food item" });
       }
     });
 
-    app.delete('/foods/:id', verifyJWT, async (req, res) => {
+    app.delete("/foods/:id", verifyJWT, async (req, res) => {
       try {
         const id = req.params.id;
-        const result = await foodCollection.deleteOne({ _id: new ObjectId(id) });
+        const result = await foodCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
         res.send(result);
       } catch {
-        res.status(500).send({ error: 'Failed to delete food item' });
+        res.status(500).send({ error: "Failed to delete food item" });
       }
     });
 
-    app.post('/foods/:id/notes', async (req, res) => {
+    app.post("/foods/:id/notes", async (req, res) => {
       const foodId = req.params.id;
       const { text, authorEmail } = req.body;
-      if (!text || !authorEmail) return res.status(400).send({ error: "Text and authorEmail are required" });
+      if (!text || !authorEmail)
+        return res
+          .status(400)
+          .send({ error: "Text and authorEmail are required" });
 
       try {
-        const food = await foodCollection.findOne({ _id: new ObjectId(foodId) });
+        const food = await foodCollection.findOne({
+          _id: new ObjectId(foodId),
+        });
         if (!food) return res.status(404).send({ error: "Food not found" });
 
         if (food.userEmail !== authorEmail) {
@@ -177,17 +228,23 @@ async function run() {
           foodId: new ObjectId(foodId),
         };
 
-        await foodCollection.updateOne({ _id: new ObjectId(foodId) }, { $push: { notes: note } });
+        await foodCollection.updateOne(
+          { _id: new ObjectId(foodId) },
+          { $push: { notes: note } }
+        );
         res.send({ insertedId: foodId });
       } catch {
         res.status(500).send({ error: "Failed to add note" });
       }
     });
 
-    app.get('/foods/:id/notes', async (req, res) => {
+    app.get("/foods/:id/notes", async (req, res) => {
       try {
         const foodId = req.params.id;
-        const food = await foodCollection.findOne({ _id: new ObjectId(foodId) }, { projection: { notes: 1 } });
+        const food = await foodCollection.findOne(
+          { _id: new ObjectId(foodId) },
+          { projection: { notes: 1 } }
+        );
         res.send(food?.notes || []);
       } catch {
         res.status(500).send({ error: "Failed to fetch notes" });
@@ -196,11 +253,13 @@ async function run() {
 
     // Global error handler
     app.use((err, req, res, next) => {
-      console.error('Unhandled error:', err);
-      res.status(500).send({ error: 'Something went wrong' });
+      console.error("Unhandled error:", err);
+      res.status(500).send({ error: "Something went wrong" });
     });
 
-    app.listen(port, () => console.log(`🚀 Server running on http://localhost:${port}`));
+    app.listen(port, () =>
+      console.log(` Server running on http://localhost:${port}`)
+    );
   } catch (err) {
     console.error("Error:", err);
   }
