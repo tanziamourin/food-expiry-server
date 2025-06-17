@@ -3,9 +3,8 @@ import cors from 'cors';
 import { MongoClient, ObjectId } from 'mongodb';
 import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
+import jwt from 'jsonwebtoken';
 import { verifyJWT } from './verifyJWT.js';
-
-
 
 dotenv.config();
 
@@ -13,11 +12,11 @@ const app = express();
 const port = process.env.PORT || 5000;
 const uri = process.env.MONGO_URI;
 
-if (!uri) throw new Error(" MONGO_URI is not defined in .env file");
+if (!uri) throw new Error("MONGO_URI is not defined in .env file");
 
 app.use(cors({
-  origin: 'http://localhost:5173', // ফ্রন্টএন্ড URL বসাও
-  credentials: true,                      // যাতে কুকি যায়
+  origin: 'http://localhost:5173', // ফ্রন্টএন্ড URL
+  credentials: true,
 }));
 app.use(express.json());
 app.use(cookieParser());
@@ -30,145 +29,107 @@ async function run() {
     await client.connect();
     const db = client.db('foodExpiryDb');
     foodCollection = db.collection('foodItems');
-    console.log(" Connected to MongoDB");
+    console.log("Connected to MongoDB");
 
-    app.get('/', (req, res) => res.send(' Food Expiry Tracker Server is Running...'));
+    app.get('/', (req, res) => res.send('Food Expiry Tracker Server is Running...'));
 
-    app.post('/jwt', (req, res) => {
-  const { email } = req.body;
+    app.post("/jwt", (req, res) => {
+      const { email } = req.body;
+      if (!email) return res.status(400).json({ error: "Email is required" });
+      if (!process.env.JWT_SECRET) return res.status(500).json({ error: "Server config error" });
 
-  if (!email) {
-    return res.status(400).send({ error: 'Email is required' });
-  }
+      const token = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: "1h" });
 
-  const token = jwt.sign({ email }, process.env.JWT_SECRET, {
-    expiresIn: '2h',
-  });
+      res.cookie('token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 24 * 60 * 60 * 1000,
+      });
 
-  res
-    .cookie('token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 2 * 60 * 60 * 1000,
-    })
-    .send({ message: 'Token set in cookie' });
-});
+      res.json({ success: true, message: 'JWT token set in cookie' });
+    });
 
-   // Get all foods with optional search and category filter
-app.get('/foods', async (req, res) => {
-  try {
-    const { search, category } = req.query;
+    app.get('/foods', async (req, res) => {
+      try {
+        const { search, category } = req.query;
+        const query = {};
+        if (search) {
+          query.$or = [
+            { title: { $regex: search, $options: 'i' } },
+            { category: { $regex: search, $options: 'i' } },
+          ];
+        }
+        if (category) query.category = category;
+        const foods = await foodCollection.find(query).toArray();
+        res.send(foods);
+      } catch (error) {
+        res.status(500).send({ error: 'Failed to fetch foods' });
+      }
+    });
 
-    const query = {};
+    app.get('/foods/expiring-soon', async (req, res) => {
+      try {
+        const end = new Date();
+        end.setDate(end.getDate() + 5);
+        end.setHours(23, 59, 59, 999);
 
-    if (search) {
-      query.$or = [
-        { title: { $regex: search, $options: 'i' } },
-        { category: { $regex: search, $options: 'i' } },
-      ];
-    }
+        const foods = await foodCollection.find({ expiryDate: { $lte: end } }).toArray();
+        res.send(foods);
+      } catch (error) {
+        res.status(500).send({ error: 'Failed to fetch expiring foods' });
+      }
+    });
 
-    if (category) {
-      query.category = category;
-    }
+    app.get('/myfoods', verifyJWT, async (req, res) => {
+      const userEmail = req.query.email;
+      if (!userEmail) return res.status(400).send({ error: 'User email is required' });
 
-    const foods = await foodCollection.find(query).toArray();
-    res.send(foods);
-  } catch (error) {
-    console.error('❌ Error fetching foods:', error);
-    res.status(500).send({ error: 'Failed to fetch foods' });
-  }
-});
+      try {
+        const foods = await foodCollection.find({ userEmail }).toArray();
+        res.send(foods);
+      } catch {
+        res.status(500).send({ error: 'Failed to fetch user foods' });
+      }
+    });
 
- // all expired or expiring in next 5 days
-
-    app.get('/foods/expiring-soon',async (req, res) => {
-  console.log('GET /foods/expiring-soon called');
-  try {
-    const end = new Date();
-    end.setDate(end.getDate() + 5);
-    end.setHours(23, 59, 59, 999);
-
-    const expiringSoonOrExpired = await foodCollection.find({
-      expiryDate: { $lte: end },
-    }).toArray();
-
-    res.send(expiringSoonOrExpired);
-  } catch (error) {
-    console.error(' Error fetching expiring foods:', error);
-    res.status(500).send({ error: 'Failed to fetch expiring food items' });
-  }
-});
-
-
-// Get all food items for a specific user (by email)
-app.get('/myfoods',verifyJWT, async (req, res) => {
-  const userEmail = req.query.email; 
-
-  if (!userEmail) {
-    return res.status(400).send({ error: 'User email is required' });
-  }
-
-  try {
-    const userFoods = await foodCollection.find({ userEmail }).toArray();
-    res.send(userFoods);
-  } catch (err) {
-    res.status(500).send({ error: 'Failed to fetch user foods' });
-  }
-});
-
-    // Get a single food item by ID
     app.get('/foods/:id', async (req, res) => {
       try {
         const id = req.params.id;
         const foodItem = await foodCollection.findOne({ _id: new ObjectId(id) });
-        if (!foodItem) {
-          return res.status(404).send({ error: 'Food item not found' });
-        }
+        if (!foodItem) return res.status(404).send({ error: 'Food item not found' });
         res.send(foodItem);
-      } catch (error) {
-        console.error(' Error fetching food item:', error);
+      } catch {
         res.status(500).send({ error: 'Failed to fetch food item' });
       }
     });
 
- // Add new food
-app.post('/foods', verifyJWT, async (req, res) => {
-  const { image, title, category, quantity, expiryDate, description, userEmail } = req.body;
+    app.post('/foods', verifyJWT, async (req, res) => {
+      const { image, title, category, quantity, expiryDate, description, userEmail } = req.body;
+      if (!image || !title || !category || !quantity || !expiryDate || !userEmail) {
+        return res.status(400).send({ error: 'Required fields are missing' });
+      }
+      if (isNaN(quantity) || quantity <= 0) {
+        return res.status(400).send({ error: 'Quantity must be a positive number' });
+      }
+      try {
+        const newFood = {
+          image,
+          title,
+          category,
+          quantity: Number(quantity),
+          expiryDate: new Date(expiryDate),
+          description: description || "",
+          addedDate: new Date(),
+          userEmail,
+        };
+        const result = await foodCollection.insertOne(newFood);
+        res.send(result);
+      } catch {
+        res.status(500).send({ error: 'Failed to add food' });
+      }
+    });
 
-  // Validate required fields
-  if (!image || !title || !category || !quantity || !expiryDate || !userEmail) {
-    return res.status(400).send({ error: 'Required fields are missing' });
-  }
-
-  // Validate quantity
-  if (isNaN(quantity) || quantity <= 0) {
-    return res.status(400).send({ error: 'Quantity must be a positive number' });
-  }
-
-  try {
-    const newFood = {
-      image,
-      title,
-      category,
-      quantity: Number(quantity),
-      expiryDate: new Date(expiryDate),
-      description: description || "", // make description optional
-      addedDate: new Date(),
-      userEmail,
-    };
-
-    const result = await foodCollection.insertOne(newFood);
-    res.send(result);
-  } catch (error) {
-    console.error(' Error adding new food:', error);
-    res.status(500).send({ error: 'Failed to add food' });
-  }
-});
-
-
-    // Update food item by ID
     app.put('/foods/:id', verifyJWT, async (req, res) => {
       try {
         const id = req.params.id;
@@ -177,102 +138,61 @@ app.post('/foods', verifyJWT, async (req, res) => {
         if (updatedFood.expiryDate) updatedFood.expiryDate = new Date(updatedFood.expiryDate);
         if (updatedFood.addedDate) updatedFood.addedDate = new Date(updatedFood.addedDate);
 
-        const result = await foodCollection.updateOne(
-          { _id: new ObjectId(id) },
-          { $set: updatedFood }
-        );
-
-        if (result.matchedCount === 0) {
-          return res.status(404).send({ error: 'Food item not found' });
-        }
+        const result = await foodCollection.updateOne({ _id: new ObjectId(id) }, { $set: updatedFood });
+        if (result.matchedCount === 0) return res.status(404).send({ error: 'Food item not found' });
 
         res.send({ message: 'Food item updated successfully' });
-      } catch (error) {
-        console.error('Error updating food item:', error);
+      } catch {
         res.status(500).send({ error: 'Failed to update food item' });
       }
     });
 
-    // Delete food item
     app.delete('/foods/:id', verifyJWT, async (req, res) => {
-      const id = req.params.id;
-      const result = await foodCollection.deleteOne({ _id: new ObjectId(id) });
-      res.send(result);
+      try {
+        const id = req.params.id;
+        const result = await foodCollection.deleteOne({ _id: new ObjectId(id) });
+        res.send(result);
+      } catch {
+        res.status(500).send({ error: 'Failed to delete food item' });
+      }
     });
 
-    // Add a note to a food item
-app.post('/foods/:id/notes', async (req, res) => {
-  const foodId = req.params.id;
-  const { text, authorEmail } = req.body;
+    app.post('/foods/:id/notes', async (req, res) => {
+      const foodId = req.params.id;
+      const { text, authorEmail } = req.body;
+      if (!text || !authorEmail) return res.status(400).send({ error: "Text and authorEmail are required" });
 
-  if (!text || !authorEmail) {
-    return res.status(400).send({ error: "Text and authorEmail are required" });
-  }
+      try {
+        const food = await foodCollection.findOne({ _id: new ObjectId(foodId) });
+        if (!food) return res.status(404).send({ error: "Food not found" });
 
-  try {
-    const food = await foodCollection.findOne({ _id: new ObjectId(foodId) });
-    if (!food) return res.status(404).send({ error: "Food not found" });
+        if (food.userEmail !== authorEmail) {
+          return res.status(403).send({ error: "Unauthorized to add note" });
+        }
 
-    if (food.userEmail !== authorEmail) {
-      return res.status(403).send({ error: "Unauthorized to add note to this item" });
-    }
+        const note = {
+          text,
+          authorEmail,
+          createdAt: new Date(),
+          foodId: new ObjectId(foodId),
+        };
 
-    const note = {
-      text,
-      authorEmail,
-      createdAt: new Date(),
-      foodId: new ObjectId(foodId),
-    };
+        await foodCollection.updateOne({ _id: new ObjectId(foodId) }, { $push: { notes: note } });
+        res.send({ insertedId: foodId });
+      } catch {
+        res.status(500).send({ error: "Failed to add note" });
+      }
+    });
 
-    const result = await foodCollection.updateOne(
-      { _id: new ObjectId(foodId) },
-      { $push: { notes: note } }
-    );
-
-    res.send({ insertedId: foodId });
-  } catch (error) {
-    console.error("Error adding note:", error);
-    res.status(500).send({ error: "Failed to add note" });
-  }
-});
-
-// Get notes for a food item
-app.get('/foods/:id/notes', async (req, res) => {
-  try {
-    const foodId = req.params.id;
-    const food = await foodCollection.findOne(
-      { _id: new ObjectId(foodId) },
-      { projection: { notes: 1 } }
-    );
-
-    res.send(food?.notes || []);
-  } catch (error) {
-    console.error("Error fetching notes:", error);
-    res.status(500).send({ error: "Failed to fetch notes" });
-  }
-});
-
-app.post('/jwt', (req, res) => {
-  const { email } = req.body;
-
-  if (!email) {
-    return res.status(400).send({ error: 'Email is required' });
-  }
-
-  const token = jwt.sign({ email }, process.env.JWT_SECRET, {
-    expiresIn: '2h',
-  });
-
-  res
-    .cookie('token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 2 * 60 * 60 * 1000, // 2 hours
-    })
-    .send({ message: 'Token set in cookie' });
-});
-
+    app.get('/foods/:id/notes', async (req, res) => {
+      try {
+        const foodId = req.params.id;
+        const food = await foodCollection.findOne({ _id: new ObjectId(foodId) }, { projection: { notes: 1 } });
+        res.send(food?.notes || []);
+      } catch {
+        res.status(500).send({ error: "Failed to fetch notes" });
+      }
+    });
 
     // Global error handler
     app.use((err, req, res, next) => {
@@ -282,7 +202,7 @@ app.post('/jwt', (req, res) => {
 
     app.listen(port, () => console.log(`🚀 Server running on http://localhost:${port}`));
   } catch (err) {
-    console.error(" Error:", err);
+    console.error("Error:", err);
   }
 }
 
