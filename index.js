@@ -13,7 +13,7 @@ const app = express();
 const port = process.env.PORT || 5000;
 const uri = process.env.MONGO_URI;
 
-if (!uri) throw new Error("❌ MONGO_URI is not defined in .env file");
+if (!uri) throw new Error(" MONGO_URI is not defined in .env file");
 
 app.use(cors({
   origin: 'http://localhost:5173/', // ফ্রন্টএন্ড URL বসাও
@@ -30,9 +30,9 @@ async function run() {
     await client.connect();
     const db = client.db('foodExpiryDb');
     foodCollection = db.collection('foodItems');
-    console.log("✅ Connected to MongoDB");
+    console.log(" Connected to MongoDB");
 
-    app.get('/', (req, res) => res.send('🍔 Food Expiry Tracker Server is Running...'));
+    app.get('/', (req, res) => res.send(' Food Expiry Tracker Server is Running...'));
 
     app.post('/jwt', (req, res) => {
   const { email } = req.body;
@@ -96,7 +96,7 @@ app.get('/foods', async (req, res) => {
 
     res.send(expiringSoonOrExpired);
   } catch (error) {
-    console.error('❌ Error fetching expiring foods:', error);
+    console.error(' Error fetching expiring foods:', error);
     res.status(500).send({ error: 'Failed to fetch expiring food items' });
   }
 });
@@ -128,7 +128,7 @@ app.get('/myfoods',verifyJWT, async (req, res) => {
         }
         res.send(foodItem);
       } catch (error) {
-        console.error('❌ Error fetching food item:', error);
+        console.error(' Error fetching food item:', error);
         res.status(500).send({ error: 'Failed to fetch food item' });
       }
     });
@@ -231,7 +231,7 @@ app.post('/foods/:id/notes', async (req, res) => {
 
     res.send({ insertedId: foodId });
   } catch (error) {
-    console.error("❌ Error adding note:", error);
+    console.error("Error adding note:", error);
     res.status(500).send({ error: "Failed to add note" });
   }
 });
@@ -247,7 +247,7 @@ app.get('/foods/:id/notes', async (req, res) => {
 
     res.send(food?.notes || []);
   } catch (error) {
-    console.error("❌ Error fetching notes:", error);
+    console.error("Error fetching notes:", error);
     res.status(500).send({ error: "Failed to fetch notes" });
   }
 });
@@ -282,7 +282,7 @@ app.post('/jwt', (req, res) => {
 
     app.listen(port, () => console.log(`🚀 Server running on http://localhost:${port}`));
   } catch (err) {
-    console.error("❌ Error:", err);
+    console.error(" Error:", err);
   }
 }
 
