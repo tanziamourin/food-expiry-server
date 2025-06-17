@@ -14,7 +14,7 @@ const uri = process.env.MONGO_URI;
 
 app.use(
   cors({
-    origin: "http://localhost:5173", // client side url
+    origin: "food-expiry-tracker-e2543.web.app", // client side url
     credentials: true,
   })
 );
