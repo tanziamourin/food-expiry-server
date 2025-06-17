@@ -16,7 +16,7 @@ const uri = process.env.MONGO_URI;
 if (!uri) throw new Error(" MONGO_URI is not defined in .env file");
 
 app.use(cors({
-  origin: 'http://localhost:5173/', // ফ্রন্টএন্ড URL বসাও
+  origin: 'http://localhost:5173', // ফ্রন্টএন্ড URL বসাও
   credentials: true,                      // যাতে কুকি যায়
 }));
 app.use(express.json());
