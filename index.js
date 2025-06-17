@@ -14,7 +14,7 @@ const uri = process.env.MONGO_URI;
 
 app.use(
   cors({
-    origin: "food-expiry-tracker-e2543.web.app", // client side url
+    origin: "https://food-expiry-tracker-e2543.web.app", // client side url
     credentials: true,
   })
 );
