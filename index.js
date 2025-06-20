@@ -127,6 +127,7 @@ console.log(req.cookies.token)
     });
 
     app.post("/foods", verifyJWT, async (req, res) => {
+       console.log("Body received:", req.body); 
       const {
         image,
         title,
