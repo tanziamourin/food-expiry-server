@@ -57,7 +57,7 @@ async function run() {
 
       res.json({ success: true, message: "JWT token set in cookie" });
     });
-
+console.log(req.cookies.token)
     // get foods from font end
 
     app.get("/foods", async (req, res) => {
