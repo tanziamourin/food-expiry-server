@@ -14,7 +14,7 @@ const uri = process.env.MONGO_URI;
 
 app.use(
   cors({
-    origin: "http://localhost:5173", // client side url
+    origin: "https://food-expiry-tracker-e2543.web.app", // client side url
     credentials: true,
   })
 );
@@ -253,52 +253,6 @@ async function run() {
       }
     });
 
-
-    // Dummy awareness stats (could come from DB)
-const awarenessStats = {
-  totalFoodSaved: 120, // in kg
-  mealsProvided: 300,
-  carbonFootprintReduced: 450, // in kg CO2
-};
-
-// Dummy awareness tips
-const awarenessTips = [
-  "Plan your meals before shopping to avoid waste.",
-  "Store food properly to extend freshness.",
-  "Use leftovers creatively for new meals.",
-  "Check expiry dates regularly.",
-];
-
-// Dummy recipe suggestions
-const recipeSuggestions = [
-  {
-    id: 1,
-    title: "Veggie Stir Fry",
-    ingredients: ["carrots", "broccoli", "soy sauce"],
-    steps: ["Chop veggies", "Stir fry with sauce", "Serve hot"],
-  },
-  {
-    id: 2,
-    title: "Banana Pancakes",
-    ingredients: ["ripe bananas", "flour", "milk", "eggs"],
-    steps: ["Mash bananas", "Mix with other ingredients", "Cook on pan"],
-  },
-];
-
-// Route: Awareness stats
-app.get("/awareness-stats", (req, res) => {
-  res.json(awarenessStats);
-});
-
-// Route: Awareness tips
-app.get("/awareness-tips", (req, res) => {
-  res.json(awarenessTips);
-});
-
-// Route: Recipe suggestions
-app.get("/recipes/suggestions", (req, res) => {
-  res.json(recipeSuggestions);
-});
 
     // Global error handler
     app.use((err, req, res, next) => {
